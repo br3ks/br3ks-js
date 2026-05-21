@@ -23,8 +23,8 @@ public class Br3kJs implements BurpExtension, HttpHandler {
     private final Set<String> seen = new TreeSet<>();
 
     private DefaultTableModel tableModel;
-    private JLabel jsCountLabel;
-    private JLabel findingCountLabel;
+    private JLabel jsCountValue;
+    private JLabel findingCountValue;
     private JTextArea logArea;
 
     private int jsCount = 0;
@@ -70,6 +70,7 @@ public class Br3kJs implements BurpExtension, HttpHandler {
         root.setBorder(BorderFactory.createEmptyBorder(14, 14, 14, 14));
 
         JPanel header = new JPanel(new BorderLayout());
+
         JLabel title = new JLabel("br3k-js");
         title.setFont(new Font("Segoe UI", Font.BOLD, 26));
 
@@ -83,13 +84,17 @@ public class Br3kJs implements BurpExtension, HttpHandler {
         header.add(titleBox, BorderLayout.WEST);
 
         JPanel cards = new JPanel(new GridLayout(1, 3, 10, 10));
-        jsCountLabel = makeCard("JS Files", "0");
-        findingCountLabel = makeCard("Findings", "0");
-        JLabel modeLabel = makeCard("Mode", "Passive");
 
-        cards.add(jsCountLabel);
-        cards.add(findingCountLabel);
-        cards.add(modeLabel);
+        JPanel jsCard = makeCard("JS Files", "0");
+        JPanel findingCard = makeCard("Findings", "0");
+        JPanel modeCard = makeCard("Mode", "Passive");
+
+        jsCountValue = (JLabel) jsCard.getComponent(1);
+        findingCountValue = (JLabel) findingCard.getComponent(1);
+
+        cards.add(jsCard);
+        cards.add(findingCard);
+        cards.add(modeCard);
 
         JPanel top = new JPanel(new BorderLayout(12, 12));
         top.add(header, BorderLayout.NORTH);
@@ -134,22 +139,26 @@ public class Br3kJs implements BurpExtension, HttpHandler {
         return root;
     }
 
-    private JLabel makeCard(String title, String value) {
-        JLabel label = new JLabel(cardHtml(title, value), SwingConstants.CENTER);
-        label.setOpaque(true);
-        label.setBackground(new Color(245, 247, 250));
-        label.setBorder(BorderFactory.createCompoundBorder(
+    private JPanel makeCard(String title, String value) {
+        JPanel panel = new JPanel(new GridLayout(2, 1));
+        panel.setBackground(new Color(245, 247, 250));
+        panel.setBorder(BorderFactory.createCompoundBorder(
                 BorderFactory.createLineBorder(new Color(210, 215, 220)),
-                BorderFactory.createEmptyBorder(8, 8, 8, 8)
+                BorderFactory.createEmptyBorder(12, 12, 12, 12)
         ));
-        return label;
-    }
 
-    private String cardHtml(String title, String value) {
-        return "<html><div style='text-align:center;'>"
-                + "<div style='font-size:11px; color:#666;'>" + title + "</div>"
-                + "<div style='font-size:24px; font-weight:bold;'>" + value + "</div>"
-                + "</div></html>";
+        JLabel titleLabel = new JLabel(title, SwingConstants.CENTER);
+        titleLabel.setFont(new Font("Segoe UI", Font.PLAIN, 12));
+        titleLabel.setForeground(new Color(90, 90, 90));
+
+        JLabel valueLabel = new JLabel(value, SwingConstants.CENTER);
+        valueLabel.setFont(new Font("Segoe UI", Font.BOLD, 24));
+        valueLabel.setForeground(new Color(30, 30, 30));
+
+        panel.add(titleLabel);
+        panel.add(valueLabel);
+
+        return panel;
     }
 
     @Override
@@ -214,8 +223,8 @@ public class Br3kJs implements BurpExtension, HttpHandler {
 
     private void updateStats() {
         SwingUtilities.invokeLater(() -> {
-            jsCountLabel.setText(cardHtml("JS Files", String.valueOf(jsCount)));
-            findingCountLabel.setText(cardHtml("Findings", String.valueOf(tableModel.getRowCount())));
+            jsCountValue.setText(String.valueOf(jsCount));
+            findingCountValue.setText(String.valueOf(tableModel.getRowCount()));
         });
     }
 
