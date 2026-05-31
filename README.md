@@ -6,19 +6,41 @@ Passive JavaScript endpoint & parameter extractor for Burp Suite.
 
 # Features
 
-## JavaScript Detection
+## JavaScript & HTML script Detection
 
-Automatically detects JavaScript responses based on:
+Automatically detects and analyzes JavaScript and HTML script blocks based on:
 
-* `.js` file extension
-* `Content-Type: javascript`
-* `Content-Type: ecmascript`
+* `.js` and `.html` file extensions
+* `Content-Type: javascript`, `Content-Type: ecmascript`, or `Content-Type: html`
+* Extracts and scans inline JavaScript code inside `<script>` blocks in HTML pages
+
+---
+
+## Manual Scan (Context Menu Integration)
+
+* Right-click one or multiple HTTP requests inside **HTTP History** (or other Burp Suite tools like Target/Repeater).
+* Select **"Analyze JS/HTML in br3k-js"** to run a manual on-demand analysis on selected items asynchronously without blocking the UI.
+
+---
+
+## Scope & HTML Filtering
+
+* **Only In-Scope Filter**: An option to only analyze in-scope targets, dramatically reducing out-of-scope widget and analytics noise.
+* **Analyze HTML Toggle**: Easily enable/disable analysis of HTML script tags on the fly.
+
+---
+
+## Interactive UI Filters
+
+* **Real-time Search Bar**: Type in the search box to immediately filter findings by type, value, or source URL.
+* **Category Type Filter**: Dropdown menu to filter results by type (`Endpoint`, `Query Param`, `JSON Key`, `FormData Key`, `Header`).
+* **Visible / Total Findings Count**: Shows filtered results out of the total findings dynamically (e.g., `25 / 203`).
 
 ---
 
 ## Endpoint Extraction
 
-Extracts:
+Extracts paths and full URLs:
 
 ```text
 /api/user
@@ -37,7 +59,7 @@ Useful for:
 
 ## Query Parameter Extraction
 
-Detects query parameters from JavaScript:
+Detects query parameters from strings and modern JS methods (such as `URLSearchParams.append`):
 
 ```text
 ?id=
@@ -47,19 +69,17 @@ Detects query parameters from JavaScript:
 
 Example findings:
 
-```text
-userId
-session
-redirect
-callback
-access_token
-```
+* `userId`
+* `session`
+* `redirect`
+* `callback`
+* `access_token`
 
 ---
 
 ## JSON Key Extraction
 
-Extracts JSON body keys:
+Extracts JSON body keys and modern JavaScript object properties (including unquoted keys like `{ username: "admin" }`):
 
 ```json
 {
@@ -79,7 +99,7 @@ Useful for:
 
 ## FormData Extraction
 
-Detects:
+Detects keys appended to multipart/form-data objects:
 
 ```javascript
 formData.append("file", file)
@@ -95,32 +115,15 @@ Useful for:
 
 ## Header Extraction
 
-Extracts sensitive or custom headers:
+Extracts sensitive or custom headers matching API keys, tokens, or common auth formats:
 
 ```text
 Authorization
 X-Api-Key
 X-CSRF-Token
 Content-Type
+X-Auth-Token
 ```
-
-Useful for:
-
-* auth analysis
-* API testing
-* token discovery
-
----
-
-## Beautiful UI
-
-Includes:
-
-* statistics cards
-* sortable table
-* activity log
-* export CSV
-* clear results button
 
 ---
 
@@ -134,10 +137,17 @@ Includes:
 | Passive JavaScript endpoint & parameter extractor    |
 +------------------------------------------------------+
 
-+------------+------------+------------+
-| JS Files   | Findings   | Mode       |
-| 15         | 203        | Passive    |
-+------------+------------+------------+
++-------------------+------------+------------+
+| JS & HTML Files   | Findings   | Mode       |
+| 15                | 203        | Passive    |
++-------------------+------------+------------+
+
++------------------------------------------------------+
+| [Clear Results] [Export CSV]      [ ] Only In-Scope  |
+|                                   [x] Analyze HTML   |
+|                                                      |
+| Filter Search: [           ]  Filter Type: [All    ] |
++------------------------------------------------------+
 
 +------------------------------------------------------+
 | Type          | Value           | Source JS          |
@@ -209,13 +219,13 @@ build\libs\br3k-js-1.0.0.jar
 
 ## Step 1
 
-Enable Burp Proxy.
+Enable Burp Proxy or select existing traffic in Burp Suite.
 
 ---
 
 ## Step 2
 
-Browse the target application through Burp.
+Browse the target application or right-click selected items in **HTTP History** and choose **"Analyze JS/HTML in br3k-js"**.
 
 ---
 
@@ -227,13 +237,10 @@ Open the `br3k-js` tab.
 
 ## Step 4
 
-Review extracted:
+Review and filter extracted findings:
 
-* endpoints
-* parameters
-* headers
-* JSON keys
-* FormData keys
+* Search for specific keywords using **Filter Search**.
+* Drill down using **Filter Type** dropdown.
 
 ---
 
@@ -257,41 +264,55 @@ JSON Key,username,login.js
 # Architecture
 
 ```text
-Browser
+Browser / HTTP History
    ↓
-Burp Proxy
+br3k-js Extension (Passive HTTP Interceptor / Manual Trigger)
    ↓
-br3k-js Extension
+Scope / HTML Filters check
    ↓
-JavaScript Analyzer
+JavaScript & Script Block Parser
    ↓
-UI Table + CSV Export
+Interactive UI Table (with Search, Type Filters & CSV Export)
 ```
 
 ---
 
 # Detection Logic
 
+All patterns are compiled with case-insensitive features and support backticks (`` ` ``) for template literal support.
+
 ## Endpoint Regex
 
 ```regex
-["']((?:https?:)?//[^"']+|/[a-zA-Z0-9_./?=&%-]{2,})["']
+["`']((?:https?:)?//[^"`']+|/[a-zA-Z0-9_./?=&%\-]{2,})["`']
 ```
 
 ---
 
 ## Query Parameter Regex
 
+Matches standard parameters inside string values and `URLSearchParams` object append/set operations.
+
 ```regex
-[?&]([a-zA-Z0-9_\-]{2,})=
+[?&]([a-zA-Z0-9_\-]{2,})=|(?:\bparams|\bsearchParams)\.(?:append|set|get|has)\(["'`]([a-zA-Z0-9_\-]{2,})["'`]
 ```
 
 ---
 
-## JSON Key Regex
+## JSON Key & Object Property Regex
+
+Matches quoted JSON keys as well as modern unquoted object keys (e.g. `{ username: "admin" }`).
 
 ```regex
-["']([a-zA-Z0-9_\-]{2,})["']\s*:
+["`']([a-zA-Z0-9_\-]{2,})["`']\s*:|\b([a-zA-Z0-9_\-]{2,})\s*:\s*(?:["`'{]|-?\d|true|false|null|\[)
+```
+
+---
+
+## HTML Script Tag Extraction Regex
+
+```regex
+<script[^>]*>(.*?)</script>
 ```
 
 ---
@@ -300,15 +321,14 @@ UI Table + CSV Export
 
 Planned:
 
-* GraphQL detection
-* JWT detection
-* Secret scanning
+* GraphQL schema detection
+* JWT verification checks
+* Secret / Token scanning (detect keys/passwords)
 * WebSocket route detection
 * JS beautifier
 * Source map parser
 * AST parsing
-* Passive scanner issues
-* Context menu integration
+* Passive scanner issues reporter
 * Request replay
 
 ---
